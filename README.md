@@ -10,7 +10,7 @@ The FAQ Management System allows users to manage frequently asked questions with
 1. **Clone the Repository**:
 
    ```bash
-   git clone https://github.com/yourusername/faq-management-system.git
+   git clone https://github.com/Sonugupta2001/myFAQs.git
    cd faq-management-system
    ```
 

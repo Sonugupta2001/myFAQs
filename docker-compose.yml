@@ -3,13 +3,9 @@ version: '3.8'
 services:
   web:
     build: .
+    volumes:
+      - .:/app
     ports:
       - "8000:8000"
-    environment:
-      - DEBUG=0
-      - ALLOWED_HOSTS=localhost
-    depends_on:
-      - redis
-
-  redis:
-    image: "redis:alpine"
+    env_file:
+      - .env

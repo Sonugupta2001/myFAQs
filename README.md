@@ -1,5 +1,23 @@
 # FAQ Management System
 
+## Features
+### WYSIWYG Editor in Admin Pannel
+- The application implements a well maintained WYSIWYG editor for creating FAQs.
+- Features such as **searching**, **sorting** and **pagination** are implemented in the editor.
+
+### Authentication
+- APIs are classififed into two categories namely **public** and **protected (Admin-Only)**.
+- Reading the FAQs(including in any particular language) is public, while creating, updating and deleting the APIs are only restricted to Admin user.
+
+### Pre-Translation of FAQs in top-5 langauges (Seperate threads)
+- Application pre-translates the FAQs in top-5 langauges for fast access and better performance.
+- Pre-translation is assigned to a new **thread** as it invloves requesting google API for translation and retrying if the the request fails. So the main thread should not be blocked.
+- Application supports over **100+ languages** and except the top-5, other languages are translated **dynamically** when the user requests the FAQs in that partcular language.
+
+### Redis for Cache
+- Redis cloud is used as cache. It stores the frequent FAQs and returns them whenever requested, reducing the access time for frequently requested FAQs.
+
+
 ## Installation and Setup
 
 1. **Clone the Repository**:
@@ -16,7 +34,13 @@
    source venv/bin/activate
    ```
 
-3. **Set Up Environment Variables**:
+3. **Install Dependencies**:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Set Up Environment Variables**:
 
    Create a `.env` file in the project root with the following variables:
 
@@ -24,21 +48,24 @@
    REDIS_HOST=your_redis_host
    REDIS_PORT=your_redis_port
    REDIS_PASSWORD=your_redis_password
+   ADMIN_USERNAME=admin_username
+   ADMIN_PASSWORD=admin_password
+   ADMIN_EMAIL=admin_email
    ```
 
-4. **Apply Migrations**:
+5. **Apply Migrations**:
 
    ```bash
    python manage.py migrate
    ```
 
-5. **Run the Development Server**:
+6. **Run the Development Server**:
 
    ```bash
    python manage.py runserver
    ```
 
-6. **Build and Run the Docker Container**:
+7. **Build and Run the Docker Container (optional)**:
 
    ```bash
    docker-compose up --build
@@ -53,11 +80,13 @@
 ## API Endpoints
 
 ### Public APIs
+
 #### 1. List FAQs
 - **Endpoint**: `GET /api/faqs/`
 - **Description**: Retrieves a list of all FAQs.
 - **Query Parameters**: 
   - `lang` (optional): Language code for translated content (e.g., 'hi', 'bn').
+
 - **Sample Request**:
   ```http
   GET /api/faqs/?lang=hi
@@ -67,14 +96,14 @@
   [
       {
           "id": 1,
-          "question": "Django क्या है?",
-          "answer": "Django एक उच्च-स्तरीय Python वेब फ्रेमवर्क है।",
+          "question": "What is Django",
+          "answer": "Django is a web framework for python",
           "created_at": "2024-01-20T10:30:00Z"
       },
       {
           "id": 2,
-          "question": "REST क्या है?",
-          "answer": "REST नेटवर्क अनुप्रयोगों को डिज़ाइन करने के लिए एक वास्तुशिल्प शैली है।",
+          "question": "what is REST",
+          "answer": "REST is a design framework for creating APIs",
           "created_at": "2024-01-20T10:35:00Z"
       }
   ]
@@ -200,64 +229,11 @@
 ## Testing
 
 - **Run Tests**: Used Django's testing framework to run unit tests for testing API responses and models.
-Since some tests use google translate APIs and google API implements rate limiting which was causing the http error "429 Too Many Requests". So, I implemented the sleep mechanism which utilises the "retry_after" header provided in the repsonse of google translate API when it fails, to retry the test after the provided time.
 
   ```bash
   python manage.py test
   ```
 
-
-
-## Components
-
-### Models
-
-- **FAQ Model**: Model of the FAQs includes fields for the question and answer. By default, the FAQs through admin pannel are created in english and when the client requests the FAQs in a particular language they are translated dynamically in the backend through google translate API.
-
-### Views and URLs
-
-- **Viewsets**: The application uses Django REST Framework's viewsets to handle CRUD operations for FAQs.
-
-
-- **URLs**: The application uses routers to generate URL patterns for the viewsets, simplifying the process of defining API endpoints.
-
-
-### Serializers
-
-- **FAQ Serializer**: Defined in `serializers.py`, this component converts FAQ model instances to JSON format and vice versa, ensuring data is correctly structured for API responses.
-
-### WYSIWYG Editor
-
-- **Integration**: The application integrates `django-ckeditor` to provide a rich text editor for formatting FAQ answers. This allows administrators to create visually appealing content without writing HTML.
-
-
-### Admin Interface
-
-- **Django Admin**: The FAQ model is registered in the admin interface, allowing administrators to manage FAQs easily. It implements pagination, searching and sorting mechanism for efficient FAQs management.
-The admin interface is customized to include the WYSIWYG editor for rich text formatting.
-
-### Caching
-
-- **Redis Caching**: The application is configured to use Redis (cloud instance) as the caching backend, improving performance by storing translations and frequently accessed data.
-
-
-  ```python
-  CACHES = {
-      'default': {
-          'BACKEND': 'django_redis.cache.RedisCache',
-          'LOCATION': 'redis://<host>:<port>/0',
-          'OPTIONS': {
-              'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-              'PASSWORD': '<password>',
-          }
-      }
-  }
-  ```
-
-### Translation
-
-- **Automated Translations**: The application uses `googletrans` to automatically translate FAQ questions into multiple languages when a user requests the FAQs in a partciular language. It provides a fallback to English if translations are unavailable.
-Application supoorts over 100+ languages for translation.
 
 
 ## License

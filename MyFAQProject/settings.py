@@ -1,15 +1,11 @@
-"""
-Django settings for MyFAQProject project.
-"""
-
 from pathlib import Path
 from django_redis import cache
 import os
 from decouple import config
 
 
-CSRF_COOKIE_SECURE = True  # for HTTPS
-SESSION_COOKIE_SECURE = True  # for HTTPS
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_HTTPONLY = True
 

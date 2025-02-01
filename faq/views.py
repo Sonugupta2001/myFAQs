@@ -40,6 +40,7 @@ class FAQViewSet(viewsets.ModelViewSet):
                     translated_answer = translator.translate(faq.answer, dest=lang).text
                     setattr(faq, question_field, translated_question)
                     setattr(faq, answer_field, translated_answer)
+                    time.sleep(10)
                 except Exception as e:
                     if hasattr(e, 'response') and e.response.status_code == 429:
                         retry_after = int(e.response.headers.get('Retry-After', 60))

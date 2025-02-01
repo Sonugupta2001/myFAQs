@@ -55,11 +55,13 @@ The FAQ Management System allows users to manage frequently asked questions with
 
 ## Testing
 
-- **Run Tests**: Use Django's testing framework to run unit tests and ensure the application functions as expected.
+- **Run Tests**: Used Django's testing framework to run unit tests for testing API responses and models.
+Since some tests use google translate APIs and google API implements rate limiting which was causing the http error "429 Too Many Requests". So, I implemented the sleep mechanism which utilises the "retry_after" header provided in the repsonse of google translate API when it fails, to retry the test after the provided time.
 
   ```bash
   python manage.py test
   ```
+
 
 ## API Endpoints
 
@@ -76,68 +78,34 @@ The application provides the following API endpoints for managing FAQs:
 
 ### Models
 
-- **FAQ Model**: The core data structure of the application, defined in `models.py`. It includes fields for the question, answer, and translations in multiple languages. The model also includes a method to retrieve translated text dynamically.
-
-  ```python
-  class FAQ(models.Model):
-      question = models.TextField()
-      answer = RichTextField()
-      question_hi = models.TextField(blank=True, null=True)
-      question_bn = models.TextField(blank=True, null=True)
-
-      def get_translated_question(self, lang='en'):
-          if lang == 'hi' and self.question_hi:
-              return self.question_hi
-          elif lang == 'bn' and self.question_bn:
-              return self.question_bn
-          return self.question
-  ```
+- **FAQ Model**: Model of the FAQs includes fields for the question and answer. By default, the FAQs through admin pannel are created in english and when the client requests the FAQs in a particular language they are translated dynamically in the backend through google translate API.
 
 ### Views and URLs
 
 - **Viewsets**: The application uses Django REST Framework's viewsets to handle CRUD operations for FAQs. The viewsets automatically map HTTP methods to actions like `list`, `create`, `retrieve`, `update`, and `destroy`.
 
-  ```python
-  class FAQViewSet(viewsets.ModelViewSet):
-      queryset = FAQ.objects.all()
-      serializer_class = FAQSerializer
-  ```
 
 - **URLs**: The application uses routers to generate URL patterns for the viewsets, simplifying the process of defining API endpoints.
 
-  ```python
-  router = DefaultRouter()
-  router.register(r'faqs', FAQViewSet)
-  ```
 
 ### Serializers
 
 - **FAQ Serializer**: Defined in `serializers.py`, this component converts FAQ model instances to JSON format and vice versa, ensuring data is correctly structured for API responses.
 
-  ```python
-  class FAQSerializer(serializers.ModelSerializer):
-      class Meta:
-          model = FAQ
-          fields = '__all__'
-  ```
-
-### Admin Interface
-
-- **Django Admin**: The FAQ model is registered in the admin interface, allowing administrators to manage FAQs easily. The admin interface is customized to include the WYSIWYG editor for rich text formatting.
-
-  ```python
-  @admin.register(FAQ)
-  class FAQAdmin(admin.ModelAdmin):
-      list_display = ['question', 'answer']
-  ```
-
 ### WYSIWYG Editor
 
 - **Integration**: The application integrates `django-ckeditor` to provide a rich text editor for formatting FAQ answers. This allows administrators to create visually appealing content without writing HTML.
 
+
+### Admin Interface
+
+- **Django Admin**: The FAQ model is registered in the admin interface, allowing administrators to manage FAQs easily. It implements pagination, searching and sorting mechanism for efficient FAQs management.
+The admin interface is customized to include the WYSIWYG editor for rich text formatting.
+
 ### Caching
 
-- **Redis Caching**: The application is configured to use Redis as the caching backend, improving performance by storing translations and frequently accessed data.
+- **Redis Caching**: The application is configured to use Redis (cloud instance) as the caching backend, improving performance by storing translations and frequently accessed data.
+
 
   ```python
   CACHES = {
@@ -154,18 +122,8 @@ The application provides the following API endpoints for managing FAQs:
 
 ### Translation
 
-- **Automated Translations**: The application uses `googletrans` to automatically translate FAQ questions into multiple languages during creation. It provides a fallback to English if translations are unavailable.
-
-  ```python
-  def save(self, *args, **kwargs):
-      translator = Translator()
-      if not self.question_hi:
-          self.question_hi = translator.translate(self.question, dest='hi').text
-      if not self.question_bn:
-          self.question_bn = translator.translate(self.question, dest='bn').text
-      super().save(*args, **kwargs)
-  ```
-
+- **Automated Translations**: The application uses `googletrans` to automatically translate FAQ questions into multiple languages when a user requests the FAQs in a partciular language. It provides a fallback to English if translations are unavailable.
+Application supoorts over 100+ languages for translation.
 
 
 ## License

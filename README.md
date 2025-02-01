@@ -1,10 +1,5 @@
 # FAQ Management System
 
-## Overview
-
-The FAQ Management System allows users to manage frequently asked questions with support for multiple languages. It includes a rich text editor for formatting answers and uses Redis for caching to enhance performance. The application is built using Django and Django REST Framework.
-
-
 ## Installation and Setup
 
 1. **Clone the Repository**:
@@ -53,6 +48,155 @@ The FAQ Management System allows users to manage frequently asked questions with
    The application will be available at `http://localhost:8000`.
 
 
+
+
+## API Endpoints
+
+### Public APIs
+#### 1. List FAQs
+- **Endpoint**: `GET /api/faqs/`
+- **Description**: Retrieves a list of all FAQs.
+- **Query Parameters**: 
+  - `lang` (optional): Language code for translated content (e.g., 'hi', 'bn').
+- **Sample Request**:
+  ```http
+  GET /api/faqs/?lang=hi
+  ```
+- **Sample Response**:
+  ```json
+  [
+      {
+          "id": 1,
+          "question": "Django क्या है?",
+          "answer": "Django एक उच्च-स्तरीय Python वेब फ्रेमवर्क है।",
+          "created_at": "2024-01-20T10:30:00Z"
+      },
+      {
+          "id": 2,
+          "question": "REST क्या है?",
+          "answer": "REST नेटवर्क अनुप्रयोगों को डिज़ाइन करने के लिए एक वास्तुशिल्प शैली है।",
+          "created_at": "2024-01-20T10:35:00Z"
+      }
+  ]
+  ```
+
+#### 2. Retrieve FAQ
+- **Endpoint**: `GET /api/faqs/<id>/`
+- **Description**: Retrieves a specific FAQ by ID.
+- **Query Parameters**: 
+  - `lang` (optional): Language code for translated content.
+- **Sample Request**:
+  ```http
+  GET /api/faqs/1/?lang=hi
+  ```
+- **Sample Response**:
+  ```json
+  {
+      "id": 1,
+      "question": "Django क्या है?",
+      "answer": "Django एक उच्च-स्तरीय Python वेब फ्रेमवर्क है।",
+      "created_at": "2024-01-20T10:30:00Z"
+  }
+  ```
+
+
+### Restricted(Admin-Only) APIs
+
+#### 1. Create FAQ
+- **Endpoint**: `POST /api/faqs/`
+- **Description**: Creates a new FAQ. (Admin only)
+- **Request Body**:
+  ```json
+  {
+      "question": "What is an API?",
+      "answer": "An API is a set of rules that allows programs to talk to each other."
+  }
+  ```
+- **Sample Response**:
+  ```json
+  {
+      "id": 3,
+      "question": "What is an API?",
+      "answer": "An API is a set of rules that allows programs to talk to each other.",
+      "created_at": "2024-01-20T11:00:00Z"
+  }
+  ```
+
+#### 2. Update FAQ
+- **Endpoint**: `PATCH /api/faqs/<id>/`
+- **Description**: Updates an existing FAQ. (Admin only)
+- **Request Body**:
+  ```json
+  {
+      "question": "What is Django Framework?",
+      "answer": "Django is a high-level Python web framework that enables rapid development of secure and maintainable websites."
+  }
+  ```
+- **Sample Response**:
+  ```json
+  {
+      "id": 1,
+      "question": "What is Django Framework?",
+      "answer": "Django is a high-level Python web framework that enables rapid development of secure and maintainable websites.",
+      "created_at": "2024-01-20T10:30:00Z"
+  }
+  ```
+
+#### 3. Delete FAQ
+- **Endpoint**: `DELETE /api/faqs/<id>/`
+- **Description**: Deletes a specific FAQ. (Admin only)
+- **Response**: Returns HTTP 204 No Content on successful deletion.
+
+
+## Error Responses
+
+1. **Not Found (404)**:
+   - **Description**: The requested resource does not exist.
+   - **Response**:
+     ```json
+     {
+         "detail": "Not found."
+     }
+     ```
+
+2. **Unauthorized (401)**:
+   - **Description**: Authentication credentials were not provided or are invalid.
+   - **Response**:
+     ```json
+     {
+         "detail": "Authentication credentials were not provided."
+     }
+     ```
+
+3. **Forbidden (403)**:
+   - **Description**: The user does not have permission to perform the action (e.g., non-admin trying to create an FAQ).
+   - **Response**:
+     ```json
+     {
+         "detail": "You do not have permission to perform this action."
+     }
+     ```
+
+4. **Rate Limit Exceeded (429)**:
+   - **Description**: Too many requests have been made in a short period.
+   - **Response**:
+     ```json
+     {
+         "detail": "Request was throttled. Expected available in <X> seconds."
+     }
+     ```
+
+5. **Bad Request (400)**:
+   - **Description**: The request was malformed or invalid.
+   - **Response**:
+     ```json
+     {
+         "error": "Invalid request parameters"
+     }
+     ```
+
+
+
 ## Testing
 
 - **Run Tests**: Used Django's testing framework to run unit tests for testing API responses and models.
@@ -63,16 +207,6 @@ Since some tests use google translate APIs and google API implements rate limiti
   ```
 
 
-## API Endpoints
-
-The application provides the following API endpoints for managing FAQs:
-
-- **List FAQs**: `GET /api/faqs/`
-- **Retrieve FAQ**: `GET /api/faqs/<id>/`
-- **Create FAQ**: `POST /api/faqs/`
-- **Update FAQ**: `PATCH /api/faqs/<id>/`
-- **Delete FAQ**: `DELETE /api/faqs/<id>/`
-
 
 ## Components
 
@@ -82,7 +216,7 @@ The application provides the following API endpoints for managing FAQs:
 
 ### Views and URLs
 
-- **Viewsets**: The application uses Django REST Framework's viewsets to handle CRUD operations for FAQs. The viewsets automatically map HTTP methods to actions like `list`, `create`, `retrieve`, `update`, and `destroy`.
+- **Viewsets**: The application uses Django REST Framework's viewsets to handle CRUD operations for FAQs.
 
 
 - **URLs**: The application uses routers to generate URL patterns for the viewsets, simplifying the process of defining API endpoints.

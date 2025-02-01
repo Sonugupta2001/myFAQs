@@ -5,6 +5,14 @@ Django settings for MyFAQProject project.
 from pathlib import Path
 from django_redis import cache
 import os
+from decouple import config
+
+
+CSRF_COOKIE_SECURE = True  # for HTTPS
+SESSION_COOKIE_SECURE = True  # for HTTPS
+CSRF_COOKIE_HTTPONLY = True
+SESSION_COOKIE_HTTPONLY = True
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -67,14 +75,13 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'MyFAQProject.wsgi.application'
 
-
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': f"redis://{os.environ.get('REDIS_HOST')}:{os.environ.get('REDIS_PORT')}/0",
+        'LOCATION': f"redis://{config('REDIS_HOST')}:{config('REDIS_PORT')}/0",
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-            'PASSWORD': os.environ.get('REDIS_PASSWORD'),
+            'PASSWORD': config('REDIS_PASSWORD'),
         }
     }
 }
@@ -92,12 +99,17 @@ CKEDITOR_CONFIGS = {
 REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.UserRateThrottle',
-        'rest_framework.throttling.AnonRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
         'user': '100/day',
-        'anon': '10/hour',
-    }
+    },
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+    ],
 }
 
 # Database

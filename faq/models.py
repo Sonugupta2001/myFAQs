@@ -1,8 +1,10 @@
 from django.db import models
+from ckeditor.fields import RichTextField
+
 
 class FAQ(models.Model):
     question = models.TextField()
-    answer = models.TextField()
+    answer = RichTextField()
     question_es = models.TextField(blank=True, null=True)
     answer_es = models.TextField(blank=True, null=True)
     question_hi = models.TextField(blank=True, null=True)

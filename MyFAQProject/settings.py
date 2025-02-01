@@ -48,6 +48,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'MyFAQProject.urls'
 
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -78,6 +79,7 @@ CACHES = {
     }
 }
 
+
 CKEDITOR_CONFIGS = {
     'default': {
         'toolbar': 'full',
@@ -85,6 +87,7 @@ CKEDITOR_CONFIGS = {
         'width': '100%',
     },
 }
+
 
 REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_CLASSES': [

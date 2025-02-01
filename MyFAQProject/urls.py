@@ -18,6 +18,8 @@ from django.contrib import admin
 from django.urls import include, path
 
 urlpatterns = [
+    # return simple greatings to home page
+    path('', lambda request: HttpResponse('Welcome to MyFAQProject!'), name='home'),
     path('admin/', admin.site.urls),
     path('api/', include('faq.urls')),
 ]

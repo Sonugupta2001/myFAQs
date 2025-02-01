@@ -19,5 +19,4 @@ class FAQAdmin(admin.ModelAdmin):
 
     list_filter = ['created_at']
 
-    # pagination (10 entries per page)
     list_per_page = 10

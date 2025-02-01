@@ -25,6 +25,8 @@ DEBUG = False
 
 ALLOWED_HOSTS = ['myfaqs.onrender.com', 'localhost']
 
+CSRF_TRUSTED_ORIGINS = ['https://myfaqs.onrender.com']
+
 
 # Application definition
 

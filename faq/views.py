@@ -1,21 +1,18 @@
-import time
-import threading
-import asyncio
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAdminUser
-from googletrans import AsyncTranslator  # Use AsyncTranslator for async support
 from django.core.cache import cache
 from django.contrib.admin.views.decorators import staff_member_required
 from django.utils.decorators import method_decorator
+from django_rq import enqueue
 from .models import FAQ
 from .serializers import FAQSerializer
 from .languages import SUPPORTED_LANGUAGES
+from .tasks import translate_faq
 
 class FAQViewSet(viewsets.ModelViewSet):
     queryset = FAQ.objects.all()
     serializer_class = FAQSerializer
-    request_count = 0
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
@@ -23,32 +20,6 @@ class FAQViewSet(viewsets.ModelViewSet):
         else:
             permission_classes = [IsAuthenticatedOrReadOnly]
         return [permission() for permission in permission_classes]
-
-    async def translate_to_languages(self, faq_id):
-        faq = FAQ.objects.get(id=faq_id)  # This is still synchronous
-        translator = AsyncTranslator()  # Use AsyncTranslator
-
-        for lang in SUPPORTED_LANGUAGES:
-            if lang == 'en':
-                continue
-
-            question_field = f'question_{lang}'
-            answer_field = f'answer_{lang}'
-
-            if not getattr(faq, question_field) or not getattr(faq, answer_field):
-                try:
-                    translated_question = await translator.translate(faq.question, dest=lang)
-                    translated_answer = await translator.translate(faq.answer, dest=lang)
-                    setattr(faq, question_field, translated_question.text)
-                    setattr(faq, answer_field, translated_answer.text)
-                    await asyncio.sleep(10)
-                except Exception as e:
-                    if hasattr(e, 'response') and e.response.status_code == 429:
-                        retry_after = int(e.response.headers.get('Retry-After', 60))
-                        await asyncio.sleep(retry_after)
-                        continue
-
-        faq.save()  # This is still synchronous
 
     def list(self, request, *args, **kwargs):
         lang = request.query_params.get('lang', 'en')
@@ -86,21 +57,14 @@ class FAQViewSet(viewsets.ModelViewSet):
                         'created_at': faq.created_at,
                     })
                 else:
-                    translator = AsyncTranslator()  # Use AsyncTranslator
-                    try:
-                        translated_faq = {
-                            'id': faq.id,
-                            'question': (await translator.translate(faq.question, dest=lang)).text,
-                            'answer': (await translator.translate(faq.answer, dest=lang)).text,
-                            'created_at': faq.created_at,
-                        }
-                        translated_faqs.append(translated_faq)
-                        self.request_count += 2
-                    except Exception as e:
-                        if hasattr(e, 'response') and e.response.status_code == 429:
-                            retry_after = int(e.response.headers.get('Retry-After', 60))
-                            time.sleep(retry_after)
-                            continue
+                    enqueue(translate_faq, faq.id)
+                    translated_faqs.append({
+                        'id': faq.id,
+                        'question': faq.question,
+                        'answer': faq.answer,
+                        'created_at': faq.created_at,
+                        'translation_pending': True,
+                    })
 
         cache.set(cache_key, translated_faqs, timeout=60*10)
         return Response(translated_faqs)
@@ -135,57 +99,51 @@ class FAQViewSet(viewsets.ModelViewSet):
             }
             cache.set(cache_key, translated_faq, timeout=60*10)
             return Response(translated_faq)
-
-        translator = AsyncTranslator()  # Use AsyncTranslator
-        try:
+        else:
+            enqueue(translate_faq, instance.id)
             translated_faq = {
                 'id': instance.id,
-                'question': (await translator.translate(instance.question, dest=lang)).text,
-                'answer': (await translator.translate(instance.answer, dest=lang)).text,
+                'question': instance.question,
+                'answer': instance.answer,
                 'created_at': instance.created_at,
+                'translation_pending': True,
             }
-            cache.set(cache_key, translated_faq, timeout=60*10)
-            return Response(translated_faq)
-        except Exception as e:
-            if hasattr(e, 'response') and e.response.status_code == 429:
-                retry_after = int(e.response.headers.get('Retry-After', 60))
-                time.sleep(retry_after)
-                return self.retrieve(request, *args, **kwargs)
+            return Response(translated_faq, status=status.HTTP_202_ACCEPTED)
 
     @method_decorator(staff_member_required)
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
         faq_id = response.data['id']
-        threading.Thread(target=lambda: asyncio.run(self.translate_to_languages(faq_id))).start()
+        enqueue(translate_faq, faq_id)
         return response
 
     @method_decorator(staff_member_required)
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        for lang in SUPPORTED_LANGUAGES:
-            cache.delete(f'faqs_{lang}')
-            cache.delete(f'faq_{instance.id}_{lang}')
+        self.invalidate_faq_cache(instance)
         response = super().update(request, *args, **kwargs)
-        threading.Thread(target=lambda: asyncio.run(self.translate_to_languages(instance.id))).start()
+        enqueue(translate_faq, instance.id)
         return response
 
     @method_decorator(staff_member_required)
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
-        for lang in SUPPORTED_LANGUAGES:
-            cache.delete(f'faqs_{lang}')
-            cache.delete(f'faq_{instance.id}_{lang}')
+        self.invalidate_faq_cache(instance)
         response = super().partial_update(request, *args, **kwargs)
-        threading.Thread(target=lambda: asyncio.run(self.translate_to_languages(instance.id))).start()
+        enqueue(translate_faq, instance.id)
         return response
 
     @method_decorator(staff_member_required)
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        self.invalidate_faq_cache(instance)
+        response = super().destroy(request, *args, **kwargs)
+        return response
+
+    def invalidate_faq_cache(self, instance):
         for lang in SUPPORTED_LANGUAGES:
             cache.delete(f'faqs_{lang}')
             cache.delete(f'faq_{instance.id}_{lang}')
-        return super().destroy(request, *args, **kwargs)
 
 
 

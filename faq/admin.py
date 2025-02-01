@@ -8,10 +8,11 @@ class FAQAdmin(admin.ModelAdmin):
         'question_es', 'answer_es',
         'question_fr', 'answer_fr',
         'question_de', 'answer_de',
-        'question_zh', 'answer_zh'
+        'question_zh_cn', 'answer_zh_cn',
+
     ]
     
-    list_display = ['question', 'answer','created_at']
+    list_display = ['question', 'answer', 'created_at']
 
     search_fields = ['question', 'answer']
 

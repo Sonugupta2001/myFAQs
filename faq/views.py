@@ -4,7 +4,7 @@ import asyncio
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAdminUser
-from googletrans import Translator
+from googletrans import AsyncTranslator  # Use AsyncTranslator for async support
 from django.core.cache import cache
 from django.contrib.admin.views.decorators import staff_member_required
 from django.utils.decorators import method_decorator
@@ -25,8 +25,8 @@ class FAQViewSet(viewsets.ModelViewSet):
         return [permission() for permission in permission_classes]
 
     async def translate_to_languages(self, faq_id):
-        faq = FAQ.objects.get(id=faq_id)
-        translator = Translator()
+        faq = FAQ.objects.get(id=faq_id)  # This is still synchronous
+        translator = AsyncTranslator()  # Use AsyncTranslator
 
         for lang in SUPPORTED_LANGUAGES:
             if lang == 'en':
@@ -48,7 +48,7 @@ class FAQViewSet(viewsets.ModelViewSet):
                         await asyncio.sleep(retry_after)
                         continue
 
-        faq.save()
+        faq.save()  # This is still synchronous
 
     def list(self, request, *args, **kwargs):
         lang = request.query_params.get('lang', 'en')
@@ -86,12 +86,12 @@ class FAQViewSet(viewsets.ModelViewSet):
                         'created_at': faq.created_at,
                     })
                 else:
-                    translator = Translator()
+                    translator = AsyncTranslator()  # Use AsyncTranslator
                     try:
                         translated_faq = {
                             'id': faq.id,
-                            'question': translator.translate(faq.question, dest=lang).text,
-                            'answer': translator.translate(faq.answer, dest=lang).text,
+                            'question': (await translator.translate(faq.question, dest=lang)).text,
+                            'answer': (await translator.translate(faq.answer, dest=lang)).text,
                             'created_at': faq.created_at,
                         }
                         translated_faqs.append(translated_faq)
@@ -136,12 +136,12 @@ class FAQViewSet(viewsets.ModelViewSet):
             cache.set(cache_key, translated_faq, timeout=60*10)
             return Response(translated_faq)
 
-        translator = Translator()
+        translator = AsyncTranslator()  # Use AsyncTranslator
         try:
             translated_faq = {
                 'id': instance.id,
-                'question': translator.translate(instance.question, dest=lang).text,
-                'answer': translator.translate(instance.answer, dest=lang).text,
+                'question': (await translator.translate(instance.question, dest=lang)).text,
+                'answer': (await translator.translate(instance.answer, dest=lang)).text,
                 'created_at': instance.created_at,
             }
             cache.set(cache_key, translated_faq, timeout=60*10)

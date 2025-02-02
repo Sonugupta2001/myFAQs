@@ -7,24 +7,24 @@
 
 ## Features
 
-- **CRUD APIs**: Full Create, Read, Update, and Delete functionalities for managing FAQs via RESTful APIs. The ReadOnly APIs are accessible to normal user, while the remaining APIs are protected for Admin User.
-- **Multi-language Support**: The application automatic translation of FAQs into top-5 languages (Spanish, Hindi, French, German, Chinese Simplified) at the moment it is created, and the remaining languages would be translated dynamically on the user request.
-- **Background Tasks (Messaging Queues)**: The top-5 language translation is off-loaded to the Redis Messaging Queue (RQ) worker. This keeps main thread unblocked and responsive.
-- **Caching**: Redis is used as cache store, which make response faster and efficient.
-- **Admin Interface**: The admin panel contains a WYSIWYG editor to format FAQs question-answers, along with searching, sorting, and pagination features.
-- **Security**:
-  - CSRF protection and secure cookies.
-  - Rate limiting to prevent abuse.
+- **Authentication**: APIs involving Create, Read, Update, and Delete functionalities for managing FAQs are restricted to Admin Only, while the ReadOnly APIs are accessible to normal user.
+- **Multi-language Support**: The application automatically translates FAQs into defined top-5 languages (Spanish, Hindi, French, German, Chinese Simplified) at the moment it is created, and the remaining languages are translated dynamically on the user request. It will improve the response for accessing the FAQs in popular languages by pre-translating them and storing them in db/cache memory.
+- **Background Tasks (Messaging Queues)**: The top-5 language translation is off-loaded to the **Redis Queue worker**. This keeps **main thread** unblocked and responsive while the translation asks are processed in the background Asynchronously. 
+- **Cache Mechanism**: Redis is used as **Cache Store**, which stores the frequently accessed FAQs making responses faster and efficient.
+- **Admin Interface**: The admin panel contains a WYSIWYG editor to format FAQs question-answers, along with **searching**, **sorting**, and **pagination** features.
 - **Custom Logging**: Detailed logging setup to monitor application behavior and capture errors.
+- **Security**:
+  - **CSRF** protection and secure cookies.
+  - **Rate limiting** to prevent abuse.
 
 ---
 
 ## Issues
-- Google translate API seems to have a rigid rate limiting and throttling mechanism. When I was testing locally, my translation requests was denied getting an **HTTP 429** response. So some APIs, specifically those which involves accessing the translated FAQs are facing a significant delay.
-- Although I've tried to implement sleep/delays between consecutive google API requests, but still the issue seems to persists. Hence, some unit tests which were supposed to cover these endpoints are also failing.
+- Google translate API seems to have a rigid **rate limiting** and **throttling** mechanism. When I was testing locally, my translation requests was denied getting an **HTTP 429** response. So some APIs, specifically those which involves accessing the translated FAQs are facing a significant delay in production.
+- Although I've tried to implement **sleep/delays** between consecutive google API requests and **retry mechanism**, the issue still seems to persist. Hence, some unit tests which were supposed to cover these endpoints are also affected and are getting failed.
 - I considered trying other translation services like MS Azure, Amazon AWS translate, IBMs etc. but they were mostly paid and even setting up a free account required verified payment informations, which I cant provide at this moment.
 
-So I request to the evaluation team to please review the code instead of directly trying to tests those API endpoints in production. I have tried my best to implement them and I hope the efforts would be equally considered.
+Considering these issues, I request to the evaluation team to please review the code instead of directly trying to tests those API endpoints in production. I have tried my best to implement them and I hope the efforts would be equally considered.
 
 ---
 
@@ -32,10 +32,8 @@ So I request to the evaluation team to please review the code instead of directl
 
 ### Prerequisites
 
-- **Python 3.8+**
-- **Redis Server**: Required for caching and background task management.
-- **Git**: For version control.
-- **Virtual Environment Tool**: Such as `venv` or `virtualenv`.
+- **Python 3.12**
+- **Redis Server**
 
 ### Installation
 
@@ -50,7 +48,7 @@ So I request to the evaluation team to please review the code instead of directl
 
    ```bash
    python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   source venv/bin/activate
    ```
 
 3. **Install Dependencies**
@@ -104,6 +102,7 @@ So I request to the evaluation team to please review the code instead of directl
    python manage.py collectstatic
    ```
 
+
 ### Running the Application
 
 1. **Start Redis Server**
@@ -127,8 +126,7 @@ So I request to the evaluation team to please review the code instead of directl
    ```bash
    python manage.py rqworker
    ```
-
-   *This worker would processe background translation tasks.*
+   This will start the rq worker in background for processing async translation tasks.
 
 4. **Access the Application**
 
@@ -137,17 +135,7 @@ So I request to the evaluation team to please review the code instead of directl
 
 ---
 
-## API Request-Response Format
-
-### Authentication
-
-- **Admin Users**: Must authenticate to perform create, update, and delete operations using Token Authentication.
-- **Authenticated Users**: Can read FAQs.
-- **Unauthenticated Users**: Can read FAQs but cannot modify them.
-
-### Endpoints
-
-All API endpoints are prefixed with `/api/faqs/`.
+## API Endpoints
 
 #### 1. List FAQs
 
@@ -156,8 +144,8 @@ Retrieve a list of all FAQs.
 - **URL**: `/api/faqs/`
 - **Method**: `GET`
 - **Query Parameters**:
-  - `lang` (optional): Language code (`en`, `es`, `hi`, `fr`, `de`, `zh_cn`).
-  - Defaults to `en`.
+  - `lang` (optional): `en`, `es`, `hi`, `fr`, `de`, `zh_cn`
+  - Default: `en`.
 
 - **Request Example**:
 
@@ -189,8 +177,6 @@ Retrieve a list of all FAQs.
 
   If the response is cached, it will be returned immediately without triggering translation tasks.
 
-- **Translation Pending**:
-
   If translations are pending, the response includes a header `translation_pending: true` to indicate that the translation is still pending (mainly due to rate limiting of google API).
 
   ```json
@@ -213,8 +199,8 @@ Retrieve details of a specific FAQ by its ID.
 - **URL**: `/api/faqs/<id>/`
 - **Method**: `GET`
 - **Query Parameters**:
-  - `lang` (optional): Language code (`en`, `es`, `hi`, `fr`, `de`, `zh_cn`). 
-  - Defaults to `en`.
+  - `lang` (optional): `en`, `es`, `hi`, `fr`, `de`, `zh_cn`
+  - Default: `en`.
 
 - **Request Example**:
 
@@ -277,10 +263,7 @@ Create a new FAQ entry.
       "updated_at": "2023-10-01T13:00:00Z"
   }
   ```
-
-- **Translation Triggered**:
-
-  After creation, background translation tasks are pushed into the message queue to translate the new FAQ into the top-5 supported languages.
+  
 
 #### 4.[Admin Only] Update FAQ
 
@@ -295,7 +278,8 @@ Update an existing FAQ.
 
   ```json
   {
-      "question": "What is the Django Framework?"
+      "question": "What is the Django Framework?",
+      "answer": "Django is a high-level Python web framework."
   }
   ```
 
@@ -312,10 +296,7 @@ Update an existing FAQ.
       "updated_at": "2023-10-01T13:05:00Z"
   }
   ```
-
-- **Translation Triggered**:
-
-  After updating, background translation tasks are enqueued to update translations in all supported languages.
+  
 
 #### 5. [Admin Only] Delete FAQ
 
@@ -334,7 +315,6 @@ Delete an existing FAQ.
 
 The API provides meaningful error messages and appropriate HTTP status codes for various failure scenarios.
 
-#### Common Error Responses
 
 | Status Code             | Description                                                                                   | Example Response                                           |
 |-------------------------|-----------------------------------------------------------------------------------------------|------------------------------------------------------------|

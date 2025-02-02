@@ -8,8 +8,8 @@
 ## Features
 
 - **Authentication**: APIs involving Create, Read, Update, and Delete functionalities for managing FAQs are restricted to Admin Only, while the ReadOnly APIs are accessible to normal user.
-- **Multi-language Support**: The application automatically translates FAQs into defined top-5 languages (Spanish, Hindi, French, German, Chinese Simplified) at the moment it is created, and the remaining languages are translated dynamically on the user request. It will improve the response for accessing the FAQs in popular languages by pre-translating them and storing them in db/cache memory.
-- **Messaging Queues**: ***Redis Queue Worker*** is used as message queues for off-loading the translation of FAQs in top-5 languages. This keeps the **main thread** unblocked and responsive while the translation tasks are processed in the **background** Asynchronously.
+- **Multi-language Support**: The application automatically translates FAQs into defined top-5 languages (Spanish, Hindi, French, German, Chinese Simplified) at the moment it is created, and the remaining languages are translated dynamically on the user request. This improves the response for accessing the FAQs in popular languages by pre-translating them and storing them in db/cache memory.
+- **Messaging Queues**: The pre-translation of FAQs into top-5 languages is off-loaded to **Redis Queue Worker**. This keeps the **main thread** unblocked and responsive while the translation tasks are processed in the **background** Asynchronously.
 - **Cache Mechanism**: Redis is used as **Cache Store**, which stores the frequently accessed FAQs making responses faster and efficient.
 - **Admin Interface**: The admin panel contains a WYSIWYG editor to format FAQs question-answers, along with **searching**, **sorting**, and **pagination** features.
 - **Custom Logging**: Detailed logging setup to monitor application behavior and capture errors.

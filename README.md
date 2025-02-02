@@ -19,6 +19,15 @@
 
 ---
 
+## Issues
+- Google translate API seems to have a rigid rate limiting and throttling mechanism. When I was testing locally, my translation requests was denied getting an **HTTP 429** response. So some APIs, specifically those which involves accessing the translated FAQs are facing a significant delay.
+- Although I've tried to implement sleep/delays between consecutive google API requests, but still the issue seems to persists. Hence, some unit tests which were supposed to cover these endpoints are also failing.
+- I considered trying other translation services like MS Azure, Amazon AWS translate, IBMs etc. but they were mostly paid and even setting up a free account required verified payment informations, which I cant provide at this moment.
+
+So I request to the evaluation team to please review the code instead of directly trying to tests those API endpoints in production. I have tried my best to implement them and I hope the efforts would be equally considered.
+
+---
+
 ## Setup Instructions
 
 ### Prerequisites
@@ -337,10 +346,6 @@ The API provides meaningful error messages and appropriate HTTP status codes for
 | `500 Internal Server Error`| An unexpected error occurred on the server.                                                  | `{"detail": "Internal server error."}`                     |
 
 ---
-
-## Note:
-- Since I've used the Google Translate API for translating the FAQs, the google API has a rigid rate limiting and throttling mechanism. So some API requests, specifically those which involves accessing the FAQs in a less-common language (which are not supported by our top-5 popular language list), may face a significant delay. Although I've implemented sleep/delays between consecutive google API requests, but still it may face rate limiting. In that case, we have no other option except to retry again, after the specified amount of time-period, which I've implemented in those API endpoints.
-- The main concern is, some API endpoints and tests may consume a significant time or get failed as well. And here I've explained why it might happen.
 
 ## License
 

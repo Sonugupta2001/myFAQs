@@ -4,11 +4,12 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAdminUser
 from django.core.cache import cache
 from django.contrib.admin.views.decorators import staff_member_required
 from django.utils.decorators import method_decorator
-from django_rq import enqueue
+from django_rq import get_queue
 from .models import FAQ
 from .serializers import FAQSerializer
 from .languages import SUPPORTED_LANGUAGES
 from .tasks import translate_faq
+
 
 class FAQViewSet(viewsets.ModelViewSet):
     queryset = FAQ.objects.all()
@@ -57,7 +58,9 @@ class FAQViewSet(viewsets.ModelViewSet):
                         'created_at': faq.created_at,
                     })
                 else:
-                    enqueue(translate_faq, faq.id)
+                    queue = get_queue()
+                    queue.enqueue(translate_faq, faq_id)
+
                     translated_faqs.append({
                         'id': faq.id,
                         'question': faq.question,
@@ -81,40 +84,52 @@ class FAQViewSet(viewsets.ModelViewSet):
         if cached_faq is not None:
             return Response(cached_faq)
 
+        serializer = self.get_serializer(instance)
+        data = serializer.data
+
         if lang == 'en':
-            serializer = self.get_serializer(instance)
-            return Response(serializer.data)
-
-        question_field = f'question_{lang}'
-        answer_field = f'answer_{lang}'
-        question = getattr(instance, question_field, None)
-        answer = getattr(instance, answer_field, None)
-
-        if question and answer:
-            translated_faq = {
-                'id': instance.id,
-                'question': question,
-                'answer': answer,
-                'created_at': instance.created_at,
+            response_data = {
+                'id': data['id'],
+                'question': data['question'],
+                'answer': data['answer'],
+                'created_at': data['created_at'],
             }
-            cache.set(cache_key, translated_faq, timeout=60*10)
-            return Response(translated_faq)
         else:
-            enqueue(translate_faq, instance.id)
-            translated_faq = {
-                'id': instance.id,
-                'question': instance.question,
-                'answer': instance.answer,
-                'created_at': instance.created_at,
-                'translation_pending': True,
-            }
-            return Response(translated_faq, status=status.HTTP_202_ACCEPTED)
+            question_field = f'question_{lang}'
+            answer_field = f'answer_{lang}'
+            question = data.get(question_field)
+            answer = data.get(answer_field)
+
+            if question and answer:
+                response_data = {
+                    'id': data['id'],
+                    'question': question,
+                    'answer': answer,
+                    'created_at': data['created_at'],
+                }
+            else:
+                queue = get_queue()
+                queue.enqueue(translate_faq, instance.id)
+
+                response_data = {
+                    'id': data['id'],
+                    'question': data['question'],
+                    'answer': data['answer'],
+                    'created_at': data['created_at'],
+                    'translation_pending': True,
+                }
+
+        cache.set(cache_key, response_data, timeout=60*10)
+        return Response(response_data)
+
 
     @method_decorator(staff_member_required)
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
         faq_id = response.data['id']
-        enqueue(translate_faq, faq_id)
+
+        queue = get_queue()
+        queue.enqueue(translate_faq, faq_id)
         return response
 
     @method_decorator(staff_member_required)
@@ -122,7 +137,9 @@ class FAQViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         self.invalidate_faq_cache(instance)
         response = super().update(request, *args, **kwargs)
-        enqueue(translate_faq, instance.id)
+
+        queue = get_queue()
+        queue.enqueue(translate_faq, faq_id)
         return response
 
     @method_decorator(staff_member_required)
@@ -130,7 +147,9 @@ class FAQViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         self.invalidate_faq_cache(instance)
         response = super().partial_update(request, *args, **kwargs)
-        enqueue(translate_faq, instance.id)
+        
+        queue = get_queue()
+        queue.enqueue(translate_faq, faq_id)
         return response
 
     @method_decorator(staff_member_required)

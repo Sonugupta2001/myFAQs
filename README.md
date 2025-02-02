@@ -1,243 +1,343 @@
-# FAQ Management System
+# MyFAQProject Documentation
+
+Deployed URL: https://myfaqs.onrender.com
+---
 
 ## Features
-### WYSIWYG Editor in Admin Pannel
-- The application implements a well maintained WYSIWYG editor for creating FAQs.
-- Features such as **searching**, **sorting** and **pagination** are implemented in the editor.
 
-### Authentication
-- APIs are classififed into two categories namely **public** and **protected (Admin-Only)**.
-- Reading the FAQs(including in any particular language) is public, while creating, updating and deleting the APIs are only restricted to Admin user.
+- **CRUD APIs**: Full Create, Read, Update, and Delete functionalities for managing FAQs via RESTful APIs. The ReadOnly APIs are accessible to normal user, while the remaining APIs are protected for Admin User.
+- **Multi-language Support**: The application automatic translation of FAQs into top-5 languages (Spanish, Hindi, French, German, Chinese Simplified) at the moment it is created, and the remaining languages would be translated dynamically on the user request.
+- **Background Tasks (Messaging Queues)**: The top-5 language translation is off-loaded to the Redis Messaging Queue (RQ) worker. This keeps main thread unblocked and responsive.
+- **Caching**: Redis is used as cache store, which make response faster and efficient.
+- **Admin Interface**: The admin panel contains a WYSIWYG editor to format FAQs question-answers, along with searching, sorting, and pagination features.
+- **Security**:
+  - CSRF protection and secure cookies.
+  - Rate limiting to prevent abuse.
+- **Custom Logging**: Detailed logging setup to monitor application behavior and capture errors.
 
-### Pre-Translation of FAQs in top-5 langauges (Seperate threads)
-- Application pre-translates the FAQs in top-5 langauges for fast access and better performance.
-- Pre-translation is assigned to a new **thread** as it invloves requesting google API for translation and retrying if the the request fails. So the main thread should not be blocked.
-- Application supports over **100+ languages** and except the top-5, other languages are translated **dynamically** when the user requests the FAQs in that partcular language.
+---
 
-### Redis for Cache
-- Redis cloud is used as cache. It stores the frequent FAQs and returns them whenever requested, reducing the access time for frequently requested FAQs.
+## Setup Instructions
 
+### Prerequisites
 
-## Installation and Setup
+- **Python 3.8+**
+- **Redis Server**: Required for caching and background task management.
+- **Git**: For version control.
+- **Virtual Environment Tool**: Such as `venv` or `virtualenv`.
 
-1. **Clone the Repository**:
+### Installation
+
+1. **Clone the Repository**
 
    ```bash
    git clone https://github.com/Sonugupta2001/myFAQs.git
-   cd faq-management-system
+   cd MyFAQProject
    ```
 
-2. **Create and Activate a Virtual Environment**:
+2. **Create a Virtual Environment**
 
    ```bash
-   python -m venv venv
-   source venv/bin/activate
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
-3. **Install Dependencies**:
+3. **Install Dependencies**
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+  ```bash
+  pip install -r requirements.txt
+  ```
 
-4. **Set Up Environment Variables**:
+  *Ensure `requirements.txt` includes all required packages such as:*
+  - Django
+  - djangorestframework
+  - django-ckeditor
+  - django-rq
+  - django-decouple
+  - googletrans
+  - django-redis
+  - whitenoise
 
-   Create a `.env` file in the project root with the following variables:
+### Configuration
 
-   ```plaintext
-   REDIS_HOST=your_redis_host
-   REDIS_PORT=your_redis_port
+1. **Environment Variables**
+
+   Create a `.env` file in the project root directory and define the following variables:
+
+   ```env
+   SECRET_KEY=your_secret_key
+   DEBUG=False
+   REDIS_HOST=localhost
+   REDIS_PORT=6379
    REDIS_PASSWORD=your_redis_password
-   ADMIN_USERNAME=admin_username
-   ADMIN_PASSWORD=admin_password
-   ADMIN_EMAIL=admin_email
+   ADMIN_USERNAME=admin
+   ADMIN_EMAIL=admin@example.com
+   ADMIN_PASSWORD=securepassword
    ```
 
-5. **Apply Migrations**:
+2. **Apply Migrations**
 
    ```bash
    python manage.py migrate
    ```
 
-6. **Run the Development Server**:
+3. **Create Superuser**
+
+   ```bash
+   python manage.py createsuperuser
+   ```
+
+4. **Collect Static Files**
+
+   ```bash
+   python manage.py collectstatic
+   ```
+
+### Running the Application
+
+1. **Start Redis Server**
+
+   Run the Redis server:
+
+   ```bash
+   redis-server
+   ```
+
+2. **Start Django Development Server**
 
    ```bash
    python manage.py runserver
    ```
 
-7. **Build and Run the Docker Container (optional)**:
+3. **Start Django RQ Worker**
+
+   Open a new terminal window/tab, activate the virtual environment, navigate to the project directory, and run:
 
    ```bash
-   docker-compose up --build
+   python manage.py rqworker
    ```
 
+   *This worker would processe background translation tasks.*
 
-   The application will be available at `http://localhost:8000`.
+4. **Access the Application**
 
+   - **Admin Interface**: [http://localhost:8000/admin/](http://localhost:8000/admin/)
+   - **API Endpoints**: [http://localhost:8000/api/faqs/](http://localhost:8000/api/faqs/)
 
+---
 
+## API Request-Response Format
 
-## API Endpoints
+### Authentication
 
-### Public APIs
+- **Admin Users**: Must authenticate to perform create, update, and delete operations using Token Authentication.
+- **Authenticated Users**: Can read FAQs.
+- **Unauthenticated Users**: Can read FAQs but cannot modify them.
+
+### Endpoints
+
+All API endpoints are prefixed with `/api/faqs/`.
 
 #### 1. List FAQs
-- **Endpoint**: `GET /api/faqs/`
-- **Description**: Retrieves a list of all FAQs.
-- **Query Parameters**: 
-  - `lang` (optional): Language code for translated content (e.g., 'hi', 'bn').
 
-- **Sample Request**:
+Retrieve a list of all FAQs.
+
+- **URL**: `/api/faqs/`
+- **Method**: `GET`
+- **Query Parameters**:
+  - `lang` (optional): Language code (`en`, `es`, `hi`, `fr`, `de`, `zh_cn`).
+  - Defaults to `en`.
+
+- **Request Example**:
+
   ```http
-  GET /api/faqs/?lang=hi
+  GET /api/faqs/?lang=es HTTP/1.1
+  Host: localhost:8000
   ```
-- **Sample Response**:
+
+- **Successful Response** (`200 OK`):
+
   ```json
   [
       {
           "id": 1,
-          "question": "What is Django",
-          "answer": "Django is a web framework for python",
-          "created_at": "2024-01-20T10:30:00Z"
+          "question": "¿Qué es Django?",
+          "answer": "Django es un framework web de alto nivel en Python.",
+          "created_at": "2023-10-01T12:34:56Z"
       },
       {
           "id": 2,
-          "question": "what is REST",
-          "answer": "REST is a design framework for creating APIs",
-          "created_at": "2024-01-20T10:35:00Z"
+          "question": "¿Qué es REST?",
+          "answer": "REST es un estilo arquitectónico para diseñar aplicaciones en red.",
+          "created_at": "2023-10-01T12:35:56Z"
       }
   ]
   ```
 
-#### 2. Retrieve FAQ
-- **Endpoint**: `GET /api/faqs/<id>/`
-- **Description**: Retrieves a specific FAQ by ID.
-- **Query Parameters**: 
-  - `lang` (optional): Language code for translated content.
-- **Sample Request**:
-  ```http
-  GET /api/faqs/1/?lang=hi
+- **Cached Response**:
+
+  If the response is cached, it will be returned immediately without triggering translation tasks.
+
+- **Translation Pending**:
+
+  If translations are pending, the response includes a header `translation_pending: true` to indicate that the translation is still pending (mainly due to rate limiting of google API).
+
+  ```json
+  [
+      {
+          "id": 1,
+          "question": "What is Django?",
+          "answer": "Django is a high-level Python web framework.",
+          "created_at": "2023-10-01T12:34:56Z",
+          "translation_pending": true
+      },
+      ...
+  ]
   ```
-- **Sample Response**:
+
+#### 2. Retrieve FAQ
+
+Retrieve details of a specific FAQ by its ID.
+
+- **URL**: `/api/faqs/<id>/`
+- **Method**: `GET`
+- **Query Parameters**:
+  - `lang` (optional): Language code (`en`, `es`, `hi`, `fr`, `de`, `zh_cn`). 
+  - Defaults to `en`.
+
+- **Request Example**:
+
+  ```http
+  GET /api/faqs/1/?lang=fr HTTP/1.1
+  Host: localhost:8000
+  ```
+
+- **Successful Response** (`200 OK`):
+
   ```json
   {
       "id": 1,
-      "question": "Django क्या है?",
-      "answer": "Django एक उच्च-स्तरीय Python वेब फ्रेमवर्क है।",
-      "created_at": "2024-01-20T10:30:00Z"
+      "question": "Qu'est-ce que Django?",
+      "answer": "Django est un framework web Python de haut niveau.",
+      "created_at": "2023-10-01T12:34:56Z"
   }
   ```
 
+- **Translation Pending** (`202 Accepted`):
 
-### Restricted(Admin-Only) APIs
+  If translation is not yet available, the response includes `translation_pending: true`.
 
-#### 1. Create FAQ
-- **Endpoint**: `POST /api/faqs/`
-- **Description**: Creates a new FAQ. (Admin only)
+  ```json
+  {
+      "id": 1,
+      "question": "What is Django?",
+      "answer": "Django is a high-level Python web framework.",
+      "created_at": "2023-10-01T12:34:56Z",
+      "translation_pending": true
+  }
+  ```
+
+#### 3. [Admin Only] Create FAQ
+
+Create a new FAQ entry.
+
+- **URL**: `/api/faqs/`
+- **Method**: `POST`
+- **Headers**:
+  - `Authorization: Token <admin_token>`
+
 - **Request Body**:
+
   ```json
   {
       "question": "What is an API?",
       "answer": "An API is a set of rules that allows programs to talk to each other."
   }
   ```
-- **Sample Response**:
+
+- **Successful Response** (`201 Created`):
+
   ```json
   {
       "id": 3,
       "question": "What is an API?",
       "answer": "An API is a set of rules that allows programs to talk to each other.",
-      "created_at": "2024-01-20T11:00:00Z"
+      "created_at": "2023-10-01T13:00:00Z",
+      "updated_at": "2023-10-01T13:00:00Z"
   }
   ```
 
-#### 2. Update FAQ
-- **Endpoint**: `PATCH /api/faqs/<id>/`
-- **Description**: Updates an existing FAQ. (Admin only)
+- **Translation Triggered**:
+
+  After creation, background translation tasks are pushed into the message queue to translate the new FAQ into the top-5 supported languages.
+
+#### 4.[Admin Only] Update FAQ
+
+Update an existing FAQ.
+
+- **URL**: `/api/faqs/<id>/`
+- **Method**: `PATCH`
+- **Headers**:
+  - `Authorization: Token <admin_token>`
+
 - **Request Body**:
+
   ```json
   {
-      "question": "What is Django Framework?",
-      "answer": "Django is a high-level Python web framework that enables rapid development of secure and maintainable websites."
+      "question": "What is the Django Framework?"
   }
   ```
-- **Sample Response**:
+
+- **Successful Response** (`200 OK`):
+
   ```json
   {
       "id": 1,
-      "question": "What is Django Framework?",
-      "answer": "Django is a high-level Python web framework that enables rapid development of secure and maintainable websites.",
-      "created_at": "2024-01-20T10:30:00Z"
+      "question": "What is the Django Framework?",
+      "answer": "Django is a high-level Python web framework.",
+      "question_es": "¿Qué es el marco Django?",
+      "answer_es": "Django es un framework web de alto nivel en Python.",
+      "created_at": "2023-10-01T12:34:56Z",
+      "updated_at": "2023-10-01T13:05:00Z"
   }
   ```
 
-#### 3. Delete FAQ
-- **Endpoint**: `DELETE /api/faqs/<id>/`
-- **Description**: Deletes a specific FAQ. (Admin only)
-- **Response**: Returns HTTP 204 No Content on successful deletion.
+- **Translation Triggered**:
 
+  After updating, background translation tasks are enqueued to update translations in all supported languages.
 
-## Error Responses
+#### 5. [Admin Only] Delete FAQ
 
-1. **Not Found (404)**:
-   - **Description**: The requested resource does not exist.
-   - **Response**:
-     ```json
-     {
-         "detail": "Not found."
-     }
-     ```
+Delete an existing FAQ.
 
-2. **Unauthorized (401)**:
-   - **Description**: Authentication credentials were not provided or are invalid.
-   - **Response**:
-     ```json
-     {
-         "detail": "Authentication credentials were not provided."
-     }
-     ```
+- **URL**: `/api/faqs/<id>/`
+- **Method**: `DELETE`
+- **Headers**:
+  - `Authorization: Token <admin_token>`
 
-3. **Forbidden (403)**:
-   - **Description**: The user does not have permission to perform the action (e.g., non-admin trying to create an FAQ).
-   - **Response**:
-     ```json
-     {
-         "detail": "You do not have permission to perform this action."
-     }
-     ```
+- **Successful Response** (`204 No Content`):
 
-4. **Rate Limit Exceeded (429)**:
-   - **Description**: Too many requests have been made in a short period.
-   - **Response**:
-     ```json
-     {
-         "detail": "Request was throttled. Expected available in <X> seconds."
-     }
-     ```
+---
 
-5. **Bad Request (400)**:
-   - **Description**: The request was malformed or invalid.
-   - **Response**:
-     ```json
-     {
-         "error": "Invalid request parameters"
-     }
-     ```
+### Error Responses
 
+The API provides meaningful error messages and appropriate HTTP status codes for various failure scenarios.
 
+#### Common Error Responses
 
-## Testing
+| Status Code             | Description                                                                                   | Example Response                                           |
+|-------------------------|-----------------------------------------------------------------------------------------------|------------------------------------------------------------|
+| `400 Bad Request`       | Invalid input data.                                                                           | `{"detail": "Invalid data."}`                              |
+| `401 Unauthorized`      | Authentication credentials were not provided or are invalid.                                  | `{"detail": "Authentication credentials were not provided."}` |
+| `403 Forbidden`         | User does not have permission to perform the action.                                         | `{"detail": "You do not have permission to perform this action."}` |
+| `404 Not Found`         | The requested resource does not exist.                                                       | `{"detail": "Not found."}`                                 |
+| `405 Method Not Allowed`| HTTP method not supported for the endpoint.                                                  | `{"detail": "Method \"PUT\" not allowed."}`                |
+| `500 Internal Server Error`| An unexpected error occurred on the server.                                                  | `{"detail": "Internal server error."}`                     |
 
-- **Run Tests**: Used Django's testing framework to run unit tests for testing API responses and models.
-
-  ```bash
-  python manage.py test
-  ```
-
-
+---
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the [MIT License](LICENSE).
 
 ---

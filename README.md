@@ -1,6 +1,10 @@
 # MyFAQProject Documentation
 
 Deployed URL: https://myfaqs.onrender.com
+
+Admin Username: Sonugupta
+Admin Password: 12345
+
 ---
 
 ## Features

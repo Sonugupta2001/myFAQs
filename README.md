@@ -336,6 +336,10 @@ The API provides meaningful error messages and appropriate HTTP status codes for
 
 ---
 
+## Note:
+- Since I've used the Google Translate API for translating the FAQs, the google API has a rigid rate limiting and throttling mechanism. So some API requests, specifically those which involves accessing the FAQs in a less-common language (which are not supported by our top-5 popular language list), may face a significant delay. Although I've implemented sleep/delays between consecutive google API requests, but still it may face rate limiting. In that case, we have no other option except to retry again, after the specified amount of time-period, which I've implemented in those API endpoints.
+- The main concern is, some API endpoints and tests may consume a significant time or get failed as well. And here I've explained why it might happen.
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).

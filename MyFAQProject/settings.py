@@ -70,11 +70,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'MyFAQProject.wsgi.application'
 
-# Redis Configuration for Caching
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': f"redis://:{config('REDIS_PASSWORD')}@{config('REDIS_HOST')}:{config('REDIS_PORT')}/0",
+        # 'LOCATION': f"redis://:{config('REDIS_PASSWORD')}@{config('REDIS_HOST')}:{config('REDIS_PORT')}/0",
+        'LOCATION': config('REDIS_URL_RENDER'),
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         }
@@ -83,16 +83,13 @@ CACHES = {
 
 RQ_QUEUES = {
     'default': {
-        'HOST': config('REDIS_HOST'),
-        'PORT': config('REDIS_PORT'),
-        'PASSWORD': config('REDIS_PASSWORD'),
-        'DB': 0,
-        'DEFAULT_TIMEOUT': 360,
-    }
+        'URL': config('REDIS_URL_RENDER'),
+        'DEFAULT_TIMEOUT': 60,
+        'USE_REDIS_CACHE': True,
+    },
 }
 
 
-# CKEditor Configuration
 CKEDITOR_CONFIGS = {
     'default': {
         'toolbar': 'full',
@@ -102,7 +99,6 @@ CKEDITOR_CONFIGS = {
 }
 
 
-# REST Framework Configuration
 REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.UserRateThrottle',
@@ -119,7 +115,6 @@ REST_FRAMEWORK = {
     ],
 }
 
-# Logging Configuration
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': True,

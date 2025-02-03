@@ -9,11 +9,16 @@ from .models import FAQ
 from .serializers import FAQSerializer
 from .languages import SUPPORTED_LANGUAGES
 from .tasks import translate_faq
+import logging
 
+logger = logging.getLogger(__name__)
+
+CACHE_TIMEOUT = 60 * 10
 
 class FAQViewSet(viewsets.ModelViewSet):
     queryset = FAQ.objects.all()
     serializer_class = FAQSerializer
+    queue = get_queue()
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
@@ -21,6 +26,38 @@ class FAQViewSet(viewsets.ModelViewSet):
         else:
             permission_classes = [IsAuthenticatedOrReadOnly]
         return [permission() for permission in permission_classes]
+
+    def get_translated_faq(self, faq, lang):
+        if lang == 'en':
+            return {
+                'id': faq.id,
+                'question': faq.question,
+                'answer': faq.answer,
+                'created_at': faq.created_at,
+            }
+        else:
+            question_field = f'question_{lang}'
+            answer_field = f'answer_{lang}'
+            question = getattr(faq, question_field, None)
+            answer = getattr(faq, answer_field, None)
+
+            if question and answer:
+                return {
+                    'id': faq.id,
+                    'question': question,
+                    'answer': answer,
+                    'created_at': faq.created_at,
+                }
+            else:
+                self.queue.enqueue(translate_faq, faq.id, retry={'interval': 60, 'max': 3})
+
+                return {
+                    'id': faq.id,
+                    'question': faq.question,
+                    'answer': faq.answer,
+                    'created_at': faq.created_at,
+                    'translation_pending': True,
+                }
 
     def list(self, request, *args, **kwargs):
         lang = request.query_params.get('lang', 'en')
@@ -37,39 +74,10 @@ class FAQViewSet(viewsets.ModelViewSet):
         translated_faqs = []
 
         for faq in queryset:
-            if lang == 'en':
-                translated_faqs.append({
-                    'id': faq.id,
-                    'question': faq.question,
-                    'answer': faq.answer,
-                    'created_at': faq.created_at,
-                })
-            else:
-                question_field = f'question_{lang}'
-                answer_field = f'answer_{lang}'
-                question = getattr(faq, question_field, None)
-                answer = getattr(faq, answer_field, None)
+            translated_faq = self.get_translated_faq(faq, lang)
+            translated_faqs.append(translated_faq)
 
-                if question and answer:
-                    translated_faqs.append({
-                        'id': faq.id,
-                        'question': question,
-                        'answer': answer,
-                        'created_at': faq.created_at,
-                    })
-                else:
-                    queue = get_queue()
-                    queue.enqueue(translate_faq, faq_id)
-
-                    translated_faqs.append({
-                        'id': faq.id,
-                        'question': faq.question,
-                        'answer': faq.answer,
-                        'created_at': faq.created_at,
-                        'translation_pending': True,
-                    })
-
-        cache.set(cache_key, translated_faqs, timeout=60*10)
+        cache.set(cache_key, translated_faqs, timeout=CACHE_TIMEOUT)
         return Response(translated_faqs)
 
     def retrieve(self, request, *args, **kwargs):
@@ -84,52 +92,16 @@ class FAQViewSet(viewsets.ModelViewSet):
         if cached_faq is not None:
             return Response(cached_faq)
 
-        serializer = self.get_serializer(instance)
-        data = serializer.data
-
-        if lang == 'en':
-            response_data = {
-                'id': data['id'],
-                'question': data['question'],
-                'answer': data['answer'],
-                'created_at': data['created_at'],
-            }
-        else:
-            question_field = f'question_{lang}'
-            answer_field = f'answer_{lang}'
-            question = data.get(question_field)
-            answer = data.get(answer_field)
-
-            if question and answer:
-                response_data = {
-                    'id': data['id'],
-                    'question': question,
-                    'answer': answer,
-                    'created_at': data['created_at'],
-                }
-            else:
-                queue = get_queue()
-                queue.enqueue(translate_faq, instance.id)
-
-                response_data = {
-                    'id': data['id'],
-                    'question': data['question'],
-                    'answer': data['answer'],
-                    'created_at': data['created_at'],
-                    'translation_pending': True,
-                }
-
-        cache.set(cache_key, response_data, timeout=60*10)
+        response_data = self.get_translated_faq(instance, lang)
+        cache.set(cache_key, response_data, timeout=CACHE_TIMEOUT)
         return Response(response_data)
-
 
     @method_decorator(staff_member_required)
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
         faq_id = response.data['id']
 
-        queue = get_queue()
-        queue.enqueue(translate_faq, faq_id)
+        self.queue.enqueue(translate_faq, faq_id, retry={'interval': 60, 'max': 3})
         return response
 
     @method_decorator(staff_member_required)
@@ -138,8 +110,7 @@ class FAQViewSet(viewsets.ModelViewSet):
         self.invalidate_faq_cache(instance)
         response = super().update(request, *args, **kwargs)
 
-        queue = get_queue()
-        queue.enqueue(translate_faq, faq_id)
+        self.queue.enqueue(translate_faq, instance.id, retry={'interval': 60, 'max': 3})
         return response
 
     @method_decorator(staff_member_required)
@@ -148,8 +119,7 @@ class FAQViewSet(viewsets.ModelViewSet):
         self.invalidate_faq_cache(instance)
         response = super().partial_update(request, *args, **kwargs)
         
-        queue = get_queue()
-        queue.enqueue(translate_faq, faq_id)
+        self.queue.enqueue(translate_faq, instance.id, retry={'interval': 60, 'max': 3})
         return response
 
     @method_decorator(staff_member_required)

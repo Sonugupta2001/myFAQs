@@ -10,6 +10,7 @@ from .serializers import FAQSerializer
 from .languages import SUPPORTED_LANGUAGES
 from .tasks import translate_faq
 import logging
+from rq import Retry
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ class FAQViewSet(viewsets.ModelViewSet):
                     'created_at': faq.created_at,
                 }
             else:
-                self.queue.enqueue(translate_faq, faq.id, retry={'interval': 60, 'max': 3})
+                self.queue.enqueue(translate_faq, faq.id, retry=Retry(max=3, interval=[60]))
 
                 return {
                     'id': faq.id,
@@ -101,7 +102,7 @@ class FAQViewSet(viewsets.ModelViewSet):
         response = super().create(request, *args, **kwargs)
         faq_id = response.data['id']
 
-        self.queue.enqueue(translate_faq, faq_id, retry={'interval': 60, 'max': 3})
+        self.queue.enqueue(translate_faq, faq.id, retry=Retry(max=3, interval=[60]))
         return response
 
     @method_decorator(staff_member_required)
@@ -110,7 +111,7 @@ class FAQViewSet(viewsets.ModelViewSet):
         self.invalidate_faq_cache(instance)
         response = super().update(request, *args, **kwargs)
 
-        self.queue.enqueue(translate_faq, instance.id, retry={'interval': 60, 'max': 3})
+        self.queue.enqueue(translate_faq, faq.id, retry=Retry(max=3, interval=[60]))
         return response
 
     @method_decorator(staff_member_required)
@@ -119,7 +120,7 @@ class FAQViewSet(viewsets.ModelViewSet):
         self.invalidate_faq_cache(instance)
         response = super().partial_update(request, *args, **kwargs)
         
-        self.queue.enqueue(translate_faq, instance.id, retry={'interval': 60, 'max': 3})
+        self.queue.enqueue(translate_faq, faq.id, retry=Retry(max=3, interval=[60]))
         return response
 
     @method_decorator(staff_member_required)
